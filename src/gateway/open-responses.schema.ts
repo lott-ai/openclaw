@@ -85,6 +85,16 @@ export const MessageItemRoleSchema = z.enum(["system", "developer", "user", "ass
 
 export type MessageItemRole = z.infer<typeof MessageItemRoleSchema>;
 
+// Per the OpenResponses/OpenAI spec, `type` defaults to "message" when omitted
+// but `role` is present. Major clients (e.g. Vercel AI SDK) rely on this.
+const DefaultMessageItemSchema = z.object({
+  type: z.literal("message").optional().default("message"),
+  id: z.string().optional(),
+  role: MessageItemRoleSchema,
+  content: z.union([z.string(), z.array(ContentPartSchema)]),
+  status: z.string().optional(),
+});
+
 export const MessageItemSchema = z.object({
   type: z.literal("message"),
   id: z.string().optional(),
@@ -127,24 +137,18 @@ export const ItemReferenceItemSchema = z
   })
   .strict();
 
-// Per the OpenResponses/OpenAI spec, `type` defaults to "message" when omitted
-// but `role` is present. Major clients (e.g. Vercel AI SDK) rely on this.
-const RawItemParamSchema = z.discriminatedUnion("type", [
-  MessageItemSchema,
-  FunctionCallItemSchema,
-  FunctionCallOutputItemSchema,
-  ReasoningItemSchema,
-  ItemReferenceItemSchema,
+export const ItemParamSchema = z.union([
+  z.discriminatedUnion("type", [
+    MessageItemSchema,
+    FunctionCallItemSchema,
+    FunctionCallOutputItemSchema,
+    ReasoningItemSchema,
+    ItemReferenceItemSchema,
+  ]),
+  DefaultMessageItemSchema,
 ]);
 
-export const ItemParamSchema = z.preprocess((val) => {
-  if (val && typeof val === "object" && !("type" in val) && "role" in val) {
-    return { type: "message", ...val };
-  }
-  return val;
-}, RawItemParamSchema);
-
-export type ItemParam = z.infer<typeof RawItemParamSchema>;
+export type ItemParam = z.infer<typeof ItemParamSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Definitions
