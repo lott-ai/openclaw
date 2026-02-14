@@ -27,6 +27,7 @@ import {
   type ResolvedGatewayAuth,
 } from "./auth.js";
 import { normalizeCanvasScopedUrl } from "./canvas-capability.js";
+import { handleConfigSchemaHttpRequest } from "./config-schema-http.js";
 import {
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
@@ -636,6 +637,7 @@ export function createGatewayHttpServer(opts: {
       const pluginPathContext = handlePluginRequest
         ? resolvePluginRoutePathContext(requestPath)
         : null;
+
       const requestStages: GatewayHttpRequestStage[] = [
         {
           name: "hooks",
@@ -732,6 +734,10 @@ export function createGatewayHttpServer(opts: {
           allowRealIpFallback,
           rateLimiter,
         }),
+        {
+          name: "config-schema",
+          run: () => handleConfigSchemaHttpRequest(req, res),
+        },
       );
 
       if (controlUiEnabled) {
