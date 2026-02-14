@@ -20,6 +20,7 @@ const SessionsHistoryToolSchema = Type.Object({
   sessionKey: Type.String(),
   limit: Type.Optional(Type.Number({ minimum: 1 })),
   includeTools: Type.Optional(Type.Boolean()),
+  truncateMessages: Type.Optional(Type.Boolean({ default: true })),
 });
 
 const SESSIONS_HISTORY_MAX_BYTES = 80 * 1024;
@@ -252,6 +253,19 @@ export function createSessionsHistoryTool(opts?: {
       });
       const rawMessages = Array.isArray(result?.messages) ? result.messages : [];
       const selectedMessages = includeTools ? rawMessages : stripToolMessages(rawMessages);
+      
+      if (!params.truncateMessages) {
+        return jsonResult({
+          sessionKey: displayKey,
+          messages: selectedMessages,
+          truncated: false,
+          droppedMessages: false,
+          contentTruncated: false,
+          contentRedacted: false,
+          bytes: jsonUtf8Bytes(selectedMessages),
+        });
+      }
+
       const sanitizedMessages = selectedMessages.map((message) => sanitizeHistoryMessage(message));
       const contentTruncated = sanitizedMessages.some((entry) => entry.truncated);
       const contentRedacted = sanitizedMessages.some((entry) => entry.redacted);
