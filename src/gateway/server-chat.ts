@@ -583,7 +583,7 @@ export function createAgentEventHandler({
       if (recipients && recipients.size > 0) {
         broadcastToConnIds("agent", toolPayload, recipients);
       }
-    } else {
+    } else if (!shouldSuppressHeartbeatBroadcast(evt.runId)) {
       broadcast("agent", agentPayload);
     }
 
