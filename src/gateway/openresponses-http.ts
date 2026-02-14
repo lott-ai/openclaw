@@ -551,11 +551,81 @@ export async function handleOpenResponsesHttpRequest(
   setSseHeaders(res);
 
   let accumulatedText = "";
+  let accumulatedReasoning = "";
   let sawAssistantDelta = false;
   let closed = false;
   let unsubscribe = () => {};
   let finalUsage: Usage | undefined;
   let finalizeRequested: { status: ResponseResource["status"]; text: string } | null = null;
+
+  let nextOutputIndex = 0;
+  const outputItems: OutputItem[] = [];
+
+  let reasoningItemId: string | null = null;
+  let reasoningOutputIndex: number | null = null;
+  let textItemEmitted = false;
+  let textOutputIndex: number | null = null;
+  const toolCallItems = new Map<
+    string,
+    { id: string; outputIndex: number; name: string; args: string }
+  >();
+
+  const ensureTextOutputItem = () => {
+    if (textItemEmitted) {
+      return;
+    }
+    textItemEmitted = true;
+    textOutputIndex = nextOutputIndex;
+    nextOutputIndex += 1;
+
+    const outputItem = createAssistantOutputItem({
+      id: outputItemId,
+      text: accumulatedText,
+      status: "in_progress",
+    });
+
+    writeSseEvent(res, {
+      type: "response.output_item.added",
+      output_index: textOutputIndex,
+      item: outputItem,
+    });
+
+    writeSseEvent(res, {
+      type: "response.content_part.added",
+      item_id: outputItemId,
+      output_index: textOutputIndex,
+      content_index: 0,
+      part: { type: "output_text", text: accumulatedText },
+    });
+  };
+
+  const finishReasoning = () => {
+    if (reasoningItemId === null || reasoningOutputIndex === null) {
+      return;
+    }
+    writeSseEvent(res, {
+      type: "response.reasoning_summary_text.done",
+      item_id: reasoningItemId,
+      output_index: reasoningOutputIndex,
+      summary_index: 0,
+      text: accumulatedReasoning,
+    });
+
+    const reasoningItem: OutputItem = {
+      type: "reasoning",
+      id: reasoningItemId,
+      summary: accumulatedReasoning,
+    };
+    writeSseEvent(res, {
+      type: "response.output_item.done",
+      output_index: reasoningOutputIndex,
+      item: reasoningItem,
+    });
+    outputItems.push(reasoningItem);
+
+    reasoningItemId = null;
+    reasoningOutputIndex = null;
+  };
 
   const maybeFinalize = () => {
     if (closed) {
@@ -568,43 +638,51 @@ export async function handleOpenResponsesHttpRequest(
       return;
     }
     const usage = finalUsage;
+    const status = finalizeRequested.status;
+    const text = finalizeRequested.text;
 
     closed = true;
     unsubscribe();
 
+    finishReasoning();
+
+    ensureTextOutputItem();
+
+    const textIdx = textOutputIndex ?? 0;
     writeSseEvent(res, {
       type: "response.output_text.done",
       item_id: outputItemId,
-      output_index: 0,
+      output_index: textIdx,
       content_index: 0,
-      text: finalizeRequested.text,
+      text,
     });
 
     writeSseEvent(res, {
       type: "response.content_part.done",
       item_id: outputItemId,
-      output_index: 0,
+      output_index: textIdx,
       content_index: 0,
-      part: { type: "output_text", text: finalizeRequested.text },
+      part: { type: "output_text", text },
     });
 
     const completedItem = createAssistantOutputItem({
       id: outputItemId,
-      text: finalizeRequested.text,
+      text,
       status: "completed",
     });
 
     writeSseEvent(res, {
       type: "response.output_item.done",
-      output_index: 0,
+      output_index: textIdx,
       item: completedItem,
     });
 
+    const allOutput = [...outputItems, completedItem];
     const finalResponse = createResponseResource({
       id: responseId,
       model,
-      status: finalizeRequested.status,
-      output: [completedItem],
+      status,
+      output: allOutput,
       usage,
     });
 
@@ -621,37 +699,23 @@ export async function handleOpenResponsesHttpRequest(
     maybeFinalize();
   };
 
-  // Send initial events
-  const initialResponse = createResponseResource({
-    id: responseId,
-    model,
-    status: "in_progress",
-    output: [],
-  });
-
-  writeSseEvent(res, { type: "response.created", response: initialResponse });
-  writeSseEvent(res, { type: "response.in_progress", response: initialResponse });
-
-  // Add output item
-  const outputItem = createAssistantOutputItem({
-    id: outputItemId,
-    text: "",
-    status: "in_progress",
-  });
-
   writeSseEvent(res, {
-    type: "response.output_item.added",
-    output_index: 0,
-    item: outputItem,
+    type: "response.created",
+    response: createResponseResource({
+      id: responseId,
+      model,
+      status: "in_progress",
+      output: [],
+    }),
   });
-
-  // Add content part
   writeSseEvent(res, {
-    type: "response.content_part.added",
-    item_id: outputItemId,
-    output_index: 0,
-    content_index: 0,
-    part: { type: "output_text", text: "" },
+    type: "response.in_progress",
+    response: createResponseResource({
+      id: responseId,
+      model,
+      status: "in_progress",
+      output: [],
+    }),
   });
 
   unsubscribe = onAgentEvent((evt) => {
@@ -662,8 +726,111 @@ export async function handleOpenResponsesHttpRequest(
       return;
     }
 
+    if (evt.stream === "thinking") {
+      const delta = evt.data?.delta;
+      const text = evt.data?.text;
+      const content = typeof delta === "string" ? delta : typeof text === "string" ? text : "";
+      if (!content) {
+        return;
+      }
+
+      if (reasoningItemId === null) {
+        reasoningItemId = `reasoning_${randomUUID()}`;
+        reasoningOutputIndex = nextOutputIndex;
+        nextOutputIndex += 1;
+
+        const reasoningItem: OutputItem = {
+          type: "reasoning",
+          id: reasoningItemId,
+          summary: "",
+        };
+        writeSseEvent(res, {
+          type: "response.output_item.added",
+          output_index: reasoningOutputIndex,
+          item: reasoningItem,
+        });
+      }
+
+      accumulatedReasoning += content;
+      writeSseEvent(res, {
+        type: "response.reasoning_summary_text.delta",
+        item_id: reasoningItemId,
+        output_index: reasoningOutputIndex!,
+        summary_index: 0,
+        delta: content,
+      });
+      return;
+    }
+
+    if (evt.stream === "tool") {
+      const phase = evt.data?.phase;
+      const name = evt.data?.name;
+      const toolCallId = evt.data?.toolCallId;
+      const args = evt.data?.args;
+
+      if (phase === "start" && typeof name === "string" && typeof toolCallId === "string") {
+        const id = `call_${randomUUID()}`;
+        const outputIndex = nextOutputIndex;
+        nextOutputIndex += 1;
+        const argsStr =
+          args && typeof args === "object"
+            ? JSON.stringify(args)
+            : typeof args === "string"
+              ? args
+              : "";
+        toolCallItems.set(toolCallId, { id, outputIndex, name, args: argsStr });
+
+        const functionCallItem: OutputItem = {
+          type: "function_call",
+          id,
+          call_id: toolCallId,
+          name,
+          arguments: argsStr,
+          status: "in_progress",
+        };
+        writeSseEvent(res, {
+          type: "response.output_item.added",
+          output_index: outputIndex,
+          item: functionCallItem,
+        });
+        return;
+      }
+
+      if (phase === "result" && typeof toolCallId === "string") {
+        const entry = toolCallItems.get(toolCallId);
+        if (entry) {
+          toolCallItems.delete(toolCallId);
+
+          writeSseEvent(res, {
+            type: "response.function_call_arguments.done",
+            item_id: entry.id,
+            output_index: entry.outputIndex,
+            arguments: entry.args,
+          });
+
+          const completedItem: OutputItem = {
+            type: "function_call",
+            id: entry.id,
+            call_id: toolCallId,
+            name: entry.name,
+            arguments: entry.args,
+            status: "completed",
+          };
+          writeSseEvent(res, {
+            type: "response.output_item.done",
+            output_index: entry.outputIndex,
+            item: completedItem,
+          });
+          outputItems.push(completedItem);
+        }
+        return;
+      }
+    }
+
     if (evt.stream === "assistant") {
       const content = resolveAssistantStreamDeltaText(evt);
+      finishReasoning();
+
       if (!content) {
         return;
       }
@@ -671,10 +838,13 @@ export async function handleOpenResponsesHttpRequest(
       sawAssistantDelta = true;
       accumulatedText += content;
 
+      ensureTextOutputItem();
+
+      const textIdx = textOutputIndex ?? 0;
       writeSseEvent(res, {
         type: "response.output_text.delta",
         item_id: outputItemId,
-        output_index: 0,
+        output_index: textIdx,
         content_index: 0,
         delta: content,
       });
@@ -729,17 +899,21 @@ export async function handleOpenResponsesHttpRequest(
           const functionCall = pendingToolCalls[0];
           const usage = finalUsage ?? createEmptyUsage();
 
+          finishReasoning();
+          ensureTextOutputItem();
+
+          const textIdx = textOutputIndex ?? 0;
           writeSseEvent(res, {
             type: "response.output_text.done",
             item_id: outputItemId,
-            output_index: 0,
+            output_index: textIdx,
             content_index: 0,
             text: "",
           });
           writeSseEvent(res, {
             type: "response.content_part.done",
             item_id: outputItemId,
-            output_index: 0,
+            output_index: textIdx,
             content_index: 0,
             part: { type: "output_text", text: "" },
           });
@@ -751,7 +925,7 @@ export async function handleOpenResponsesHttpRequest(
           });
           writeSseEvent(res, {
             type: "response.output_item.done",
-            output_index: 0,
+            output_index: textIdx,
             item: completedItem,
           });
 
@@ -763,14 +937,16 @@ export async function handleOpenResponsesHttpRequest(
             name: functionCall.name,
             arguments: functionCall.arguments,
           };
+          const fcOutputIndex = nextOutputIndex;
+          nextOutputIndex += 1;
           writeSseEvent(res, {
             type: "response.output_item.added",
-            output_index: 1,
+            output_index: fcOutputIndex,
             item: functionCallItem,
           });
           writeSseEvent(res, {
             type: "response.output_item.done",
-            output_index: 1,
+            output_index: fcOutputIndex,
             item: { ...functionCallItem, status: "completed" as const },
           });
 
@@ -778,7 +954,7 @@ export async function handleOpenResponsesHttpRequest(
             id: responseId,
             model,
             status: "incomplete",
-            output: [completedItem, functionCallItem],
+            output: [...outputItems, completedItem, functionCallItem],
             usage,
           });
           closed = true;
@@ -800,10 +976,14 @@ export async function handleOpenResponsesHttpRequest(
         accumulatedText = content;
         sawAssistantDelta = true;
 
+        finishReasoning();
+        ensureTextOutputItem();
+
+        const textIdx = textOutputIndex ?? 0;
         writeSseEvent(res, {
           type: "response.output_text.delta",
           item_id: outputItemId,
-          output_index: 0,
+          output_index: textIdx,
           content_index: 0,
           delta: content,
         });
