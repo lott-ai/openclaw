@@ -19,6 +19,7 @@ const SessionsHistoryToolSchema = Type.Object({
   sessionKey: Type.String(),
   limit: Type.Optional(Type.Number({ minimum: 1 })),
   includeTools: Type.Optional(Type.Boolean()),
+  truncateMessages: Type.Optional(Type.Boolean({ default: true })),
 });
 
 const SESSIONS_HISTORY_MAX_BYTES = 80 * 1024;
@@ -226,26 +227,40 @@ export function createSessionsHistoryTool(opts?: {
       });
       const rawMessages = Array.isArray(result?.messages) ? result.messages : [];
       const selectedMessages = includeTools ? rawMessages : stripToolMessages(rawMessages);
-      const sanitizedMessages = selectedMessages.map((message) => sanitizeHistoryMessage(message));
-      const contentTruncated = sanitizedMessages.some((entry) => entry.truncated);
-      const cappedMessages = capArrayByJsonBytes(
-        sanitizedMessages.map((entry) => entry.message),
-        SESSIONS_HISTORY_MAX_BYTES,
-      );
-      const droppedMessages = cappedMessages.items.length < selectedMessages.length;
-      const hardened = enforceSessionsHistoryHardCap({
-        items: cappedMessages.items,
-        bytes: cappedMessages.bytes,
-        maxBytes: SESSIONS_HISTORY_MAX_BYTES,
-      });
-      return jsonResult({
-        sessionKey: displayKey,
-        messages: hardened.items,
-        truncated: droppedMessages || contentTruncated || hardened.hardCapped,
-        droppedMessages: droppedMessages || hardened.hardCapped,
-        contentTruncated,
-        bytes: hardened.bytes,
-      });
+
+      if (params.truncateMessages) {
+        const sanitizedMessages = selectedMessages.map((message) =>
+          sanitizeHistoryMessage(message),
+        );
+        const contentTruncated = sanitizedMessages.some((entry) => entry.truncated);
+        const cappedMessages = capArrayByJsonBytes(
+          sanitizedMessages.map((entry) => entry.message),
+          SESSIONS_HISTORY_MAX_BYTES,
+        );
+        const droppedMessages = cappedMessages.items.length < selectedMessages.length;
+        const hardened = enforceSessionsHistoryHardCap({
+          items: cappedMessages.items,
+          bytes: cappedMessages.bytes,
+          maxBytes: SESSIONS_HISTORY_MAX_BYTES,
+        });
+        return jsonResult({
+          sessionKey: displayKey,
+          messages: hardened.items,
+          truncated: droppedMessages || contentTruncated || hardened.hardCapped,
+          droppedMessages: droppedMessages || hardened.hardCapped,
+          contentTruncated,
+          bytes: hardened.bytes,
+        });
+      } else {
+        return jsonResult({
+          sessionKey: displayKey,
+          messages: selectedMessages,
+          truncated: false,
+          droppedMessages: false,
+          contentTruncated: false,
+          bytes: jsonUtf8Bytes(selectedMessages),
+        });
+      }
     },
   };
 }
