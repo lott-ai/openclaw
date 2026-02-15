@@ -24,7 +24,7 @@
     "sessions_list": {
       "emoji": "🗂️",
       "title": "Sessions",
-      "detailKeys": ["kinds", "limit", "activeMinutes", "messageLimit"]
+      "detailKeys": ["kinds", "limit", "activeMinutes", "messageLimit", "sessionId"]
     },
     "sessions_send": {
       "emoji": "📨",
