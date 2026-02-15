@@ -24,6 +24,7 @@ const SessionsListToolSchema = Type.Object({
   limit: Type.Optional(Type.Number({ minimum: 1 })),
   activeMinutes: Type.Optional(Type.Number({ minimum: 1 })),
   messageLimit: Type.Optional(Type.Number({ minimum: 0 })),
+  sessionId: Type.Optional(Type.String()),
 });
 
 export function createSessionsListTool(opts?: {
@@ -71,6 +72,10 @@ export function createSessionsListTool(opts?: {
           ? Math.max(0, Math.floor(params.messageLimit))
           : 0;
       const messageLimit = Math.min(messageLimitRaw, 20);
+      const sessionId =
+        typeof params.sessionId === "string" && params.sessionId.trim()
+          ? params.sessionId.trim()
+          : undefined;
 
       const list = await callGateway<{ sessions: Array<SessionListRow>; path: string }>({
         method: "sessions.list",
@@ -80,6 +85,7 @@ export function createSessionsListTool(opts?: {
           includeGlobal: !restrictToSpawned,
           includeUnknown: !restrictToSpawned,
           spawnedBy: restrictToSpawned ? effectiveRequesterKey : undefined,
+          sessionId,
         },
       });
 
