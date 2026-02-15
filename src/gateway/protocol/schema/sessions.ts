@@ -21,6 +21,7 @@ export const SessionsListParamsSchema = Type.Object(
     spawnedBy: Type.Optional(NonEmptyString),
     agentId: Type.Optional(NonEmptyString),
     search: Type.Optional(Type.String()),
+    sessionId: Type.Optional(NonEmptyString),
   },
   { additionalProperties: false },
 );

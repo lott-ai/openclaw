@@ -743,13 +743,17 @@ export function listSessionsFromStore(params: {
   const label = typeof opts.label === "string" ? opts.label.trim() : "";
   const agentId = typeof opts.agentId === "string" ? normalizeAgentId(opts.agentId) : "";
   const search = typeof opts.search === "string" ? opts.search.trim().toLowerCase() : "";
+  const sessionId = typeof opts.sessionId === "string" ? opts.sessionId.trim() : "";
   const activeMinutes =
     typeof opts.activeMinutes === "number" && Number.isFinite(opts.activeMinutes)
       ? Math.max(1, Math.floor(opts.activeMinutes))
       : undefined;
 
   let sessions = Object.entries(store)
-    .filter(([key]) => {
+    .filter(([key, entry]) => {
+      if (sessionId && entry.sessionId !== sessionId) {
+        return false;
+      }
       if (isCronRunSessionKey(key)) {
         return false;
       }
