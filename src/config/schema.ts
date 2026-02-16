@@ -297,7 +297,7 @@ function applyChannelSchemas(schema: ConfigSchema, channels: ChannelUiMetadata[]
 
 let cachedBase: ConfigSchemaResponse | null = null;
 
-function stripChannelSchema(schema: ConfigSchema): ConfigSchema {
+function _stripChannelSchema(schema: ConfigSchema): ConfigSchema {
   const next = cloneSchema(schema);
   const root = asSchemaObject(next);
   if (!root || !root.properties) {
@@ -329,7 +329,7 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
   schema.title = "OpenClawConfig";
   const hints = mapSensitivePaths(OpenClawSchema, "", buildBaseHints());
   const next = {
-    schema: stripChannelSchema(schema),
+    schema,
     uiHints: hints,
     version: VERSION,
     generatedAt: new Date().toISOString(),
