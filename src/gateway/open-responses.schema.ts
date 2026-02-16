@@ -249,6 +249,15 @@ export const OutputItemSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("function_call_output"),
+      id: z.string(),
+      call_id: z.string(),
+      output: z.string(),
+      status: z.enum(["in_progress", "completed"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("reasoning"),
       id: z.string(),
       content: z.string().optional(),

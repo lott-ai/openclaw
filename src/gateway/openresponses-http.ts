@@ -784,6 +784,7 @@ export async function handleOpenResponsesHttpRequest(
       if (phase === "result" && typeof toolCallId === "string") {
         const entry = toolCallItems.get(toolCallId);
         if (entry) {
+          const entryName = entry.name;
           toolCallItems.delete(toolCallId);
 
           writeSseEvent(res, {
@@ -797,7 +798,7 @@ export async function handleOpenResponsesHttpRequest(
             type: "function_call",
             id: entry.id,
             call_id: toolCallId,
-            name: entry.name,
+            name: entryName,
             arguments: entry.args,
             status: "completed",
           };
@@ -807,6 +808,31 @@ export async function handleOpenResponsesHttpRequest(
             item: completedItem,
           });
           outputItems.push(completedItem);
+
+          const functionCallOutput: OutputItem = {
+            type: "function_call_output",
+            id: `fco_${randomUUID()}`,
+            call_id: toolCallId,
+            output:
+              typeof evt.data?.result === "string"
+                ? evt.data.result
+                : JSON.stringify(evt.data?.result ?? ""),
+            status: "completed",
+          };
+          const functionCallOutputIndex = nextOutputIndex;
+          nextOutputIndex += 1;
+
+          writeSseEvent(res, {
+            type: "response.output_item.added",
+            output_index: functionCallOutputIndex,
+            item: functionCallOutput,
+          });
+          writeSseEvent(res, {
+            type: "response.output_item.done",
+            output_index: functionCallOutputIndex,
+            item: functionCallOutput,
+          });
+          outputItems.push(functionCallOutput);
         }
         return;
       }
