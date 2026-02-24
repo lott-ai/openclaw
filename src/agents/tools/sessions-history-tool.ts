@@ -179,7 +179,10 @@ export function createSessionsHistoryTool(opts?: {
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const sessionKeyParam = readStringParam(params, "sessionKey", {
-        required: true,
+        required: false,
+      });
+      const sessionIdParam = readStringParam(params, "sessionId", {
+        required: false,
       });
       const cfg = loadConfig();
       const { mainKey, alias, effectiveRequesterKey, restrictToSpawned } =
@@ -190,6 +193,7 @@ export function createSessionsHistoryTool(opts?: {
         });
       const resolvedSession = await resolveSessionReference({
         sessionKey: sessionKeyParam,
+        sessionId: sessionIdParam,
         alias,
         mainKey,
         requesterInternalKey: effectiveRequesterKey,
@@ -244,7 +248,7 @@ export function createSessionsHistoryTool(opts?: {
       });
       const rawMessages = Array.isArray(result?.messages) ? result.messages : [];
       const selectedMessages = includeTools ? rawMessages : stripToolMessages(rawMessages);
-      
+
       if (!params.truncateMessages) {
         return jsonResult({
           sessionKey: displayKey,
