@@ -248,13 +248,24 @@ async function resolveSessionKeyFromKey(params: {
 }
 
 export async function resolveSessionReference(params: {
-  sessionKey: string;
+  sessionKey?: string;
+  sessionId?: string;
   alias: string;
   mainKey: string;
   requesterInternalKey?: string;
   restrictToSpawned: boolean;
 }): Promise<SessionReferenceResolution> {
-  const raw = params.sessionKey.trim();
+  if (params.sessionId) {
+    return await resolveSessionKeyFromSessionId({
+      sessionId: params.sessionId,
+      alias: params.alias,
+      mainKey: params.mainKey,
+      requesterInternalKey: params.requesterInternalKey,
+      restrictToSpawned: params.restrictToSpawned,
+    });
+  }
+
+  const raw = params.sessionKey?.trim() || "";
   if (shouldResolveSessionIdInput(raw)) {
     // Prefer key resolution to avoid misclassifying custom keys as sessionIds.
     const resolvedByKey = await resolveSessionKeyFromKey({
