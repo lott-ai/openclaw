@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import AVFoundation
 
 public enum CameraAuthorization {
@@ -19,3 +20,4 @@ public enum CameraAuthorization {
         }
     }
 }
+#endif

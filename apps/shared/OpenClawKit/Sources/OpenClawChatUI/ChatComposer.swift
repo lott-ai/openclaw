@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
-#if !os(macOS)
+#if os(iOS)
 import PhotosUI
 import UniformTypeIdentifiers
 #endif
@@ -13,32 +13,22 @@ struct OpenClawChatComposer: View {
     let style: OpenClawChatView.Style
     let showsSessionSwitcher: Bool
 
-    #if !os(macOS)
+    #if os(iOS)
     @State private var pickerItems: [PhotosPickerItem] = []
     @FocusState private var isFocused: Bool
+    #elseif os(tvOS)
+    @State private var showComposeScreen = false
     #else
     @State private var shouldFocusTextView = false
     #endif
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if self.showsToolbar {
-                HStack(spacing: 6) {
-                    if self.showsSessionSwitcher {
-                        self.sessionPicker
-                    }
-                    self.thinkingPicker
-                    Spacer()
-                    self.refreshButton
-                    self.attachmentPicker
-                }
-            }
-
-            if self.showsAttachments, !self.viewModel.attachments.isEmpty {
-                self.attachmentsStrip
-            }
-
-            self.editor
+        Group {
+            #if os(tvOS)
+            self.tvosComposer
+            #else
+            self.standardComposer
+            #endif
         }
         .padding(self.composerPadding)
         .background {
@@ -79,7 +69,64 @@ struct OpenClawChatComposer: View {
         .onAppear {
             self.shouldFocusTextView = true
         }
+        #elseif os(tvOS)
+        .fullScreenCover(isPresented: self.$showComposeScreen) {
+            TVOSComposeScreen(viewModel: self.viewModel)
+        }
         #endif
+    }
+
+    private var standardComposer: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if self.showsToolbar {
+                HStack(spacing: 6) {
+                    if self.showsSessionSwitcher {
+                        self.sessionPicker
+                    }
+                    self.thinkingPicker
+                    Spacer()
+                    self.refreshButton
+                    self.attachmentPicker
+                }
+            }
+
+            if self.showsAttachments, !self.viewModel.attachments.isEmpty {
+                self.attachmentsStrip
+            }
+
+            self.editor
+        }
+    }
+
+    private var tvosComposer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                if self.showsSessionSwitcher {
+                    self.sessionPicker
+                }
+                self.thinkingPicker
+                Spacer(minLength: 0)
+                self.refreshButton
+                self.composeButton
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                self.connectionPill
+                Spacer(minLength: 0)
+                if self.viewModel.pendingRunCount > 0 {
+                    self.abortActionButton
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(OpenClawChatTheme.composerField)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(OpenClawChatTheme.composerBorder)))
+        .padding(self.editorPadding)
     }
 
     private var thinkingPicker: some View {
@@ -112,7 +159,7 @@ struct OpenClawChatComposer: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .frame(maxWidth: 160, alignment: .leading)
-        .help("Session")
+        .chatControlHelp("Session")
     }
 
     @ViewBuilder
@@ -123,14 +170,14 @@ struct OpenClawChatComposer: View {
         } label: {
             Image(systemName: "paperclip")
         }
-        .help("Add Image")
+        .chatControlHelp("Add Image")
         .buttonStyle(.bordered)
         .controlSize(.small)
-        #else
+        #elseif os(iOS)
         PhotosPicker(selection: self.$pickerItems, maxSelectionCount: 8, matching: .images) {
             Image(systemName: "paperclip")
         }
-        .help("Add Image")
+        .chatControlHelp("Add Image")
         .buttonStyle(.bordered)
         .controlSize(.small)
         .onChange(of: self.pickerItems) { _, newItems in
@@ -229,6 +276,7 @@ struct OpenClawChatComposer: View {
         return trimmed.isEmpty ? self.viewModel.sessionKey : trimmed
     }
 
+    @ViewBuilder
     private var editorOverlay: some View {
         ZStack(alignment: .topLeading) {
             if self.viewModel.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -245,7 +293,7 @@ struct OpenClawChatComposer: View {
             .frame(minHeight: self.textMinHeight, idealHeight: self.textMinHeight, maxHeight: self.textMaxHeight)
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
-            #else
+            #elseif os(iOS)
             TextEditor(text: self.$viewModel.input)
                 .font(.system(size: 15))
                 .scrollContentBackground(.hidden)
@@ -298,6 +346,30 @@ struct OpenClawChatComposer: View {
         }
     }
 
+    private var abortActionButton: some View {
+        Button {
+            self.viewModel.abort()
+        } label: {
+            if self.viewModel.isAborting {
+                Label("Aborting…", systemImage: "stop.fill")
+            } else {
+                Label("Abort", systemImage: "stop.fill")
+            }
+        }
+        .buttonStyle(.bordered)
+        .disabled(self.viewModel.isAborting)
+    }
+
+    private var composeButton: some View {
+        Button {
+            self.showComposeScreen = true
+        } label: {
+            Label("Compose", systemImage: "square.and.pencil")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(self.viewModel.pendingRunCount > 0)
+    }
+
     private var refreshButton: some View {
         Button {
             self.viewModel.refresh()
@@ -306,7 +378,7 @@ struct OpenClawChatComposer: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .help("Refresh")
+        .chatControlHelp("Refresh")
     }
 
     private var showsToolbar: Bool {
@@ -314,7 +386,11 @@ struct OpenClawChatComposer: View {
     }
 
     private var showsAttachments: Bool {
+        #if os(tvOS)
+        false
+        #else
         self.style == .standard
+        #endif
     }
 
     private var showsConnectionPill: Bool {
@@ -338,10 +414,10 @@ struct OpenClawChatComposer: View {
     }
 
     private var isComposerCompacted: Bool {
-        #if os(macOS)
-        false
-        #else
+        #if os(iOS)
         self.style == .standard && self.isFocused
+        #else
+        false
         #endif
     }
 
@@ -373,7 +449,7 @@ struct OpenClawChatComposer: View {
         }
         return true
     }
-    #else
+    #elseif os(iOS)
     private func loadPhotosPickerItems(_ items: [PhotosPickerItem]) async {
         for item in items {
             do {
@@ -391,6 +467,89 @@ struct OpenClawChatComposer: View {
     }
     #endif
 }
+
+private extension View {
+    @ViewBuilder
+    func chatControlHelp(_ text: String) -> some View {
+        #if os(tvOS)
+        self
+        #else
+        self.help(text)
+        #endif
+    }
+}
+
+#if os(tvOS)
+@MainActor
+private struct TVOSComposeScreen: View {
+    @Bindable var viewModel: OpenClawChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            OpenClawChatTheme.background
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Compose")
+                    .font(.largeTitle.bold())
+
+                Text("Enter a message for the current session.")
+                    .foregroundStyle(.secondary)
+
+                TextField("Message OpenClaw…", text: self.$viewModel.input)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.vertical, 10)
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(OpenClawChatTheme.card))
+
+                if let error = self.activeErrorText {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        self.dismiss()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer(minLength: 0)
+
+                    if self.viewModel.pendingRunCount > 0 {
+                        Button(self.viewModel.isAborting ? "Aborting…" : "Abort") {
+                            self.viewModel.abort()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(self.viewModel.isAborting)
+                    } else {
+                        Button("Send") {
+                            self.viewModel.send()
+                            self.dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!self.viewModel.canSend || !self.viewModel.healthOK)
+                    }
+                }
+            }
+            .padding(40)
+            .frame(maxWidth: 900, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private var activeErrorText: String? {
+        guard let text = self.viewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty
+        else {
+            return nil
+        }
+        return text
+    }
+}
+#endif
 
 #if os(macOS)
 import AppKit

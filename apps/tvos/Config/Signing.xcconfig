@@ -1,0 +1,16 @@
+// Shared tvOS signing defaults for local development + CI.
+OPENCLAW_TVOS_DEFAULT_TEAM = Y5PE65HELJ
+OPENCLAW_TVOS_DEVELOPMENT_TEAM = $(OPENCLAW_TVOS_DEFAULT_TEAM)
+OPENCLAW_TVOS_APP_BUNDLE_ID = ai.openclaw.tvos
+OPENCLAW_TVOS_CODE_SIGN_STYLE = Automatic
+OPENCLAW_TVOS_APP_PROFILE =
+
+// Local contributors can override this by running scripts/tvos-configure-signing.sh.
+// Keep include after defaults: xcconfig is evaluated top-to-bottom.
+#include? "../.local-signing.xcconfig"
+#include? "../LocalSigning.xcconfig"
+
+CODE_SIGN_STYLE = $(OPENCLAW_TVOS_CODE_SIGN_STYLE)
+CODE_SIGN_IDENTITY = Apple Development
+DEVELOPMENT_TEAM = $(OPENCLAW_TVOS_DEVELOPMENT_TEAM)
+PROVISIONING_PROFILE_SPECIFIER = $(OPENCLAW_TVOS_APP_PROFILE)

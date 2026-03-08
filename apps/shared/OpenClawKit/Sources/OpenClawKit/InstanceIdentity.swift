@@ -82,6 +82,7 @@ public enum InstanceIdentity {
             switch UIDevice.current.userInterfaceIdiom {
             case .pad: return "iPad"
             case .phone: return "iPhone"
+            case .tv: return "Apple TV"
             default: return "iOS"
             }
         }
@@ -97,6 +98,7 @@ public enum InstanceIdentity {
             switch UIDevice.current.userInterfaceIdiom {
             case .pad: return "iPadOS"
             case .phone: return "iOS"
+            case .tv: return "tvOS"
             default: return "iOS"
             }
         }

@@ -1,5 +1,8 @@
 import SwiftUI
+
+#if canImport(Textual)
 import Textual
+#endif
 
 public enum ChatMarkdownVariant: String, CaseIterable, Sendable {
     case standard
@@ -22,20 +25,33 @@ struct ChatMarkdownRenderer: View {
     var body: some View {
         let processed = ChatMarkdownPreprocessor.preprocess(markdown: self.text)
         VStack(alignment: .leading, spacing: 10) {
-            StructuredText(markdown: processed.cleaned)
-                .modifier(ChatMarkdownStyle(
-                    variant: self.variant,
-                    context: self.context,
-                    font: self.font,
-                    textColor: self.textColor))
+            self.markdownBody(for: processed.cleaned)
 
             if !processed.images.isEmpty {
                 InlineImageList(images: processed.images)
             }
         }
     }
+
+    @ViewBuilder
+    private func markdownBody(for cleanedText: String) -> some View {
+        #if canImport(Textual)
+        StructuredText(markdown: cleanedText)
+            .modifier(ChatMarkdownStyle(
+                variant: self.variant,
+                context: self.context,
+                font: self.font,
+                textColor: self.textColor))
+        #else
+        Text(cleanedText)
+            .font(self.font)
+            .foregroundStyle(self.textColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        #endif
+    }
 }
 
+#if canImport(Textual)
 private struct ChatMarkdownStyle: ViewModifier {
     let variant: ChatMarkdownVariant
     let context: ChatMarkdownRenderer.Context
@@ -53,7 +69,7 @@ private struct ChatMarkdownStyle: ViewModifier {
         .font(self.font)
         .foregroundStyle(self.textColor)
         .textual.inlineStyle(self.inlineStyle)
-        .textual.textSelection(.enabled)
+        .textual.textSelection(self.textSelectionBehavior)
     }
 
     private var inlineStyle: InlineStyle {
@@ -63,7 +79,16 @@ private struct ChatMarkdownStyle: ViewModifier {
             .code(.monospaced, .fontScale(codeScale))
             .link(.foregroundColor(linkColor))
     }
+
+    private var textSelectionBehavior: TextSelection {
+        #if os(tvOS)
+        .disabled
+        #else
+        .enabled
+        #endif
+    }
 }
+#endif
 
 @MainActor
 private struct InlineImageList: View {

@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import AVFoundation
 import Foundation
 
@@ -149,3 +150,4 @@ public enum CameraCapturePipelineSupport {
         }
     }
 }
+#endif

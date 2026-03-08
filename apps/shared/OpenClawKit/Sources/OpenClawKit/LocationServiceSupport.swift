@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import CoreLocation
 import Foundation
 
@@ -47,3 +48,4 @@ public enum LocationServiceSupport {
         }
     }
 }
+#endif

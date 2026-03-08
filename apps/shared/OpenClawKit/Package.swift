@@ -6,6 +6,7 @@ let package = Package(
     name: "OpenClawKit",
     platforms: [
         .iOS(.v18),
+        .tvOS(.v18),
         .macOS(.v15),
     ],
     products: [
@@ -28,7 +29,10 @@ let package = Package(
             name: "OpenClawKit",
             dependencies: [
                 "OpenClawProtocol",
-                .product(name: "ElevenLabsKit", package: "ElevenLabsKit"),
+                .product(
+                    name: "ElevenLabsKit",
+                    package: "ElevenLabsKit",
+                    condition: .when(platforms: [.iOS, .macOS])),
             ],
             path: "Sources/OpenClawKit",
             resources: [

@@ -108,7 +108,7 @@ public struct OpenClawChatView: View {
                 .padding(.top, Layout.messageListPaddingTop)
                 .padding(.horizontal, Layout.messageListPaddingHorizontal)
             }
-            #if !os(macOS)
+            #if os(iOS)
             .scrollDismissesKeyboard(.interactively)
             #endif
             // Keep the scroll pinned to the bottom for new messages.
@@ -129,10 +129,12 @@ public struct OpenClawChatView: View {
         // Ensure the message list claims vertical space on the first layout pass.
         .frame(maxHeight: .infinity, alignment: .top)
         .layoutPriority(1)
+        #if os(iOS)
         .simultaneousGesture(
             TapGesture().onEnded {
                 self.dismissKeyboardIfNeeded()
             })
+        #endif
         .onChange(of: self.viewModel.isLoading) { _, isLoading in
             guard !isLoading, !self.hasPerformedInitialScroll else { return }
             self.scrollPosition = self.scrollerBottomID

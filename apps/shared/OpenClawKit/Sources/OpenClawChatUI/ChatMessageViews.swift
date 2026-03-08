@@ -217,7 +217,7 @@ private struct ChatMessageBody: View {
                 }
             }
         }
-        .textSelection(.enabled)
+        .textSelection(self.textSelectionBehavior)
         .padding(.vertical, 10)
         .padding(.horizontal, 12)
         .foregroundStyle(textColor)
@@ -227,6 +227,7 @@ private struct ChatMessageBody: View {
         .shadow(color: self.bubbleShadowColor, radius: self.bubbleShadowRadius, y: self.bubbleShadowYOffset)
         .padding(.leading, self.tailPaddingLeading)
         .padding(.trailing, self.tailPaddingTrailing)
+        .tvosMessageBodyFocusBehavior()
     }
 
     private var primaryText: String {
@@ -341,6 +342,26 @@ private struct ChatMessageBody: View {
 
     private var bubbleShadowYOffset: CGFloat {
         self.style == .onboarding && !self.isUser ? 2 : 0
+    }
+
+    private var textSelectionBehavior: TextSelection {
+        #if os(tvOS)
+        .disabled
+        #else
+        .enabled
+        #endif
+    }
+
+}
+
+private extension View {
+    @ViewBuilder
+    func tvosMessageBodyFocusBehavior() -> some View {
+        #if os(tvOS)
+        self.focusable(false)
+        #else
+        self
+        #endif
     }
 }
 

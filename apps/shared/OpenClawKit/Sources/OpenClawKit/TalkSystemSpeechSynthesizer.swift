@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import AVFoundation
 import Foundation
 
@@ -142,3 +143,4 @@ extension TalkSystemSpeechSynthesizer: AVSpeechSynthesizerDelegate {
         }
     }
 }
+#endif

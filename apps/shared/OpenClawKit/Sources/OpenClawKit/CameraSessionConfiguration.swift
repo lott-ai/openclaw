@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import AVFoundation
 import CoreMedia
 
@@ -68,3 +69,4 @@ public enum CameraSessionConfiguration {
         return output
     }
 }
+#endif

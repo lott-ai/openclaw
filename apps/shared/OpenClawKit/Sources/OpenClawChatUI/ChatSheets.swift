@@ -29,7 +29,7 @@ struct ChatSessionsSheet: View {
             }
             .navigationTitle("Sessions")
             .toolbar {
-                #if os(macOS)
+                #if os(macOS) || os(tvOS)
                 ToolbarItem(placement: .automatic) {
                     Button {
                         self.viewModel.refreshSessions(limit: 200)

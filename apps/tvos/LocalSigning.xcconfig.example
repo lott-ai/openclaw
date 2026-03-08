@@ -1,0 +1,9 @@
+// Copy to LocalSigning.xcconfig for personal local signing overrides.
+// This file is only an example and should stay committed.
+
+OPENCLAW_TVOS_CODE_SIGN_STYLE = Automatic
+OPENCLAW_TVOS_DEVELOPMENT_TEAM = YOUR_TEAM_ID
+OPENCLAW_TVOS_APP_BUNDLE_ID = ai.openclaw.tvos.client
+
+// Leave empty with automatic signing.
+OPENCLAW_TVOS_APP_PROFILE =
